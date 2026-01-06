@@ -74,3 +74,19 @@ export const getQueueStatus = async () => {
 
   return response.json();
 };
+
+export const exportScanPDF = async (scanId) => {
+  const response = await fetch(`${API_BASE_URL}/scan/${scanId}/export/pdf`, {
+    method: "GET",
+    headers: {
+      ...getAuthHeaders(),
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || "Failed to export PDF");
+  }
+
+  return response.blob();
+};
