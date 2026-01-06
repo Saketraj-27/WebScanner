@@ -75,7 +75,7 @@ const ScanHistory = () => {
                     Math.max(1, Math.min(totalPages - 4, page - 2)) + i;
                   return (
                     <button
-                      key={pageNum}
+                      key={`page-${pageNum}`}
                       onClick={() => handlePageChange(pageNum)}
                       className={`page-btn ${pageNum === page ? "active" : ""}`}
                     >

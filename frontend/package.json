@@ -15,7 +15,9 @@
   "type": "commonjs",
   "dependencies": {
     "axios": "^1.13.2",
+    "bullmq": "^5.66.4",
     "chart.js": "^4.5.1",
+    "ioredis": "^5.9.0",
     "react": "^19.2.3",
     "react-chartjs-2": "^5.3.1",
     "react-dom": "^19.2.3",

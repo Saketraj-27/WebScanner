@@ -13,9 +13,39 @@ export default function ScanResult({ result }) {
     return script.substring(0, 100) + (script.length > 100 ? "..." : "");
   };
 
+  const handleExportPDF = async () => {
+    try {
+      const { exportScanPDF } = await import("../api/scannerApi.jsx");
+      const blob = await exportScanPDF(result._id);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `scan-report-${result._id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("Failed to export PDF:", error);
+      alert("Failed to export PDF. Please try again.");
+    }
+  };
+
   return (
     <div className="card">
-      <h3>Status: {result.corrupted ? "❌ Corrupted" : "✅ Safe"}</h3>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginBottom: "1rem",
+        }}
+      >
+        <h3>Status: {result.corrupted ? "❌ Corrupted" : "✅ Safe"}</h3>
+        <button onClick={handleExportPDF} className="btn btn-secondary">
+          📄 Export PDF
+        </button>
+      </div>
       <p>Risk Score: {result.score}/100</p>
       <p>
         Severity:{" "}
@@ -29,89 +59,136 @@ export default function ScanResult({ result }) {
           <h4>Risk Factors:</h4>
           <ul>
             {result.reasons.map((r, i) => (
-              <li key={i}>{r}</li>
+              <li key={`reason-${i}`}>{r}</li>
             ))}
           </ul>
         </div>
       )}
 
-      {result.threats && (
+      {result.threats && result.threats.dynamic && (
         <div>
-          <h4>Threat Analysis:</h4>
-          <div>
-            <h5>Static Analysis:</h5>
-            <p>
-              Obfuscated Scripts:{" "}
-              {result.threats.static?.obfuscatedScripts || 0}
-            </p>
-            <p>
-              Suspicious Patterns:{" "}
-              {result.threats.static?.suspiciousPatterns?.length || 0}
-            </p>
+          <h4>Dynamic Analysis Threats:</h4>
+          <div className="threats-grid">
+            <div className="threat-item">
+              <strong>Redirects:</strong>{" "}
+              {result.threats.dynamic.redirects ? "Yes" : "No"}
+            </div>
+            <div className="threat-item">
+              <strong>DOM Mutations:</strong>{" "}
+              {result.threats.dynamic.domMutations || 0}
+            </div>
+            <div className="threat-item">
+              <strong>Network Errors:</strong>{" "}
+              {result.threats.dynamic.networkErrors || 0}
+            </div>
+            <div className="threat-item">
+              <strong>Console Errors:</strong>{" "}
+              {result.threats.dynamic.consoleErrors || 0}
+            </div>
+            <div className="threat-item">
+              <strong>Dynamic Scripts:</strong>{" "}
+              {result.threats.dynamic.dynamicScripts || 0}
+            </div>
+            <div className="threat-item">
+              <strong>Dynamic Iframes:</strong>{" "}
+              {result.threats.dynamic.dynamicIframes || 0}
+            </div>
+            <div className="threat-item">
+              <strong>Total Requests:</strong>{" "}
+              {result.threats.dynamic.totalRequests || 0}
+            </div>
           </div>
-          <div>
-            <h5>Dynamic Analysis:</h5>
-            <p>Redirects: {result.threats.dynamic?.redirects ? "Yes" : "No"}</p>
-            <p>DOM Mutations: {result.threats.dynamic?.domMutations || 0}</p>
-            <p>Network Errors: {result.threats.dynamic?.networkErrors || 0}</p>
-          </div>
-        </div>
-      )}
-
-      {result.staticAnalysis && (
-        <div>
-          <h4>Static Analysis Details:</h4>
-          <p>External Scripts: {result.staticAnalysis.scripts?.length || 0}</p>
-          <p>Iframes: {result.staticAnalysis.iframes?.length || 0}</p>
-          {result.staticAnalysis.obfuscatedScripts &&
-            result.staticAnalysis.obfuscatedScripts.length > 0 && (
-              <div>
-                <h5>Obfuscated Scripts:</h5>
-                <ul>
-                  {result.staticAnalysis.obfuscatedScripts
-                    .slice(0, 3)
-                    .map((script, i) => (
-                      <li key={i}>
-                        <code>{sanitizeScript(script)}</code>
-                      </li>
-                    ))}
-                  {result.staticAnalysis.obfuscatedScripts.length > 3 && (
-                    <li>
-                      ... and{" "}
-                      {result.staticAnalysis.obfuscatedScripts.length - 3} more
-                    </li>
-                  )}
-                </ul>
-              </div>
-            )}
         </div>
       )}
 
       {result.dynamicAnalysis && (
         <div>
           <h4>Dynamic Analysis Details:</h4>
-          <p>Requests: {result.dynamicAnalysis.requests?.length || 0}</p>
-          <p>Responses: {result.dynamicAnalysis.responses?.length || 0}</p>
-          <p>Final URL: {sanitizeHtml(result.dynamicAnalysis.finalURL)}</p>
+
+          {result.dynamicAnalysis.analysisFailed && (
+            <div className="error-section">
+              <h5>Analysis Failed:</h5>
+              <p>
+                Browser errors:{" "}
+                {result.dynamicAnalysis.browserErrors?.join(", ") ||
+                  "Unknown error"}
+              </p>
+            </div>
+          )}
+
+          <div className="analysis-details">
+            <p>
+              <strong>Final URL:</strong>{" "}
+              {sanitizeHtml(result.dynamicAnalysis.finalURL || result.url)}
+            </p>
+            <p>
+              <strong>Network Requests:</strong>{" "}
+              {result.dynamicAnalysis.requests?.length || 0}
+            </p>
+            <p>
+              <strong>Network Responses:</strong>{" "}
+              {result.dynamicAnalysis.responses?.length || 0}
+            </p>
+          </div>
+
           {result.dynamicAnalysis.consoleMessages &&
             result.dynamicAnalysis.consoleMessages.length > 0 && (
               <div>
-                <h5>Console Messages:</h5>
-                <ul>
+                <h5>Browser Console Messages:</h5>
+                <ul className="console-messages">
                   {result.dynamicAnalysis.consoleMessages
-                    .slice(0, 5)
+                    .slice(0, 10)
                     .map((msg, i) => (
-                      <li key={i}>
+                      <li
+                        key={`console-${i}`}
+                        className={`console-${msg.type}`}
+                      >
                         <strong>{msg.type}:</strong> {sanitizeHtml(msg.text)}
                       </li>
                     ))}
-                  {result.dynamicAnalysis.consoleMessages.length > 5 && (
+                  {result.dynamicAnalysis.consoleMessages.length > 10 && (
                     <li>
                       ... and{" "}
-                      {result.dynamicAnalysis.consoleMessages.length - 5} more
+                      {result.dynamicAnalysis.consoleMessages.length - 10} more
                       messages
                     </li>
                   )}
+                </ul>
+              </div>
+            )}
+
+          {result.dynamicAnalysis.dynamicScripts &&
+            result.dynamicAnalysis.dynamicScripts.length > 0 && (
+              <div>
+                <h5>Dynamic Scripts Loaded:</h5>
+                <ul className="script-list">
+                  {result.dynamicAnalysis.dynamicScripts
+                    .slice(0, 5)
+                    .map((script, i) => (
+                      <li key={`script-${i}`}>
+                        <code>{sanitizeScript(script)}</code>
+                      </li>
+                    ))}
+                  {result.dynamicAnalysis.dynamicScripts.length > 5 && (
+                    <li>
+                      ... and {result.dynamicAnalysis.dynamicScripts.length - 5}{" "}
+                      more scripts
+                    </li>
+                  )}
+                </ul>
+              </div>
+            )}
+
+          {result.dynamicAnalysis.dynamicIframes &&
+            result.dynamicAnalysis.dynamicIframes.length > 0 && (
+              <div>
+                <h5>Dynamic Iframes:</h5>
+                <ul>
+                  {result.dynamicAnalysis.dynamicIframes.map((iframe, i) => (
+                    <li key={`iframe-${i}`}>
+                      <code>{sanitizeHtml(iframe)}</code>
+                    </li>
+                  ))}
                 </ul>
               </div>
             )}

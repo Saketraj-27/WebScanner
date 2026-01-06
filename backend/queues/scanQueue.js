@@ -147,66 +147,10 @@ class SimpleQueue {
       const scanResult = await scanSite(url, options);
       const scanDuration = Date.now() - startTime;
 
-      // Get or create baseline
-      let baseline = await Baseline.findOne({ url, isActive: true });
+      // For dynamic-only analysis, we skip baseline comparison
+      // since we don't have static HTML content to compare
+      let baseline = null;
       let diffReport = null;
-
-      if (baseline) {
-        // Compare with baseline
-        const contentDiffResult = contentDiff(baseline.htmlContent, scanResult.staticAnalysis.html);
-        const scriptDiffResult = scriptDiff(baseline.scripts, scanResult.staticAnalysis.scripts);
-
-        diffReport = {
-          contentChanged: contentDiffResult.changed,
-          contentDiff: contentDiffResult,
-          scriptDiff: scriptDiffResult,
-          riskIncrease: scriptDiffResult.riskIncrease,
-        };
-
-        // Update baseline if significant changes detected (optional)
-        if (contentDiffResult.changed && contentDiffResult.summary.addedCount + contentDiffResult.summary.removedCount > 10) {
-          // Create new baseline version
-          baseline.isActive = false;
-          await baseline.save();
-
-          baseline = await Baseline.create({
-            url,
-            contentHash: scanResult.hash,
-            htmlContent: scanResult.staticAnalysis.html,
-            scripts: scanResult.staticAnalysis.scripts,
-            iframes: scanResult.staticAnalysis.iframes,
-            inlineScripts: scanResult.staticAnalysis.inlineScripts,
-            metaTags: scanResult.staticAnalysis.metaTags,
-            obfuscatedScripts: scanResult.staticAnalysis.obfuscatedScripts,
-            suspiciousPatterns: scanResult.staticAnalysis.suspiciousPatterns,
-            dynamicData: {
-              requests: scanResult.dynamicAnalysis.requests,
-              responses: scanResult.dynamicAnalysis.responses,
-              finalURL: scanResult.dynamicAnalysis.finalURL,
-            },
-            userId,
-          });
-        }
-      } else {
-        // Create initial baseline
-        baseline = await Baseline.create({
-          url,
-          contentHash: scanResult.hash,
-          htmlContent: scanResult.staticAnalysis.html,
-          scripts: scanResult.staticAnalysis.scripts,
-          iframes: scanResult.staticAnalysis.iframes,
-          inlineScripts: scanResult.staticAnalysis.inlineScripts,
-          metaTags: scanResult.staticAnalysis.metaTags,
-          obfuscatedScripts: scanResult.staticAnalysis.obfuscatedScripts,
-          suspiciousPatterns: scanResult.staticAnalysis.suspiciousPatterns,
-          dynamicData: {
-            requests: scanResult.dynamicAnalysis.requests,
-            responses: scanResult.dynamicAnalysis.responses,
-            finalURL: scanResult.dynamicAnalysis.finalURL,
-          },
-          userId,
-        });
-      }
 
       // Save scan result with audit logging
       const savedResult = await ScanResult.create({
@@ -330,30 +274,54 @@ class SimpleQueue {
   }
 }
 
-// Try to use Bull queue, fallback to simple queue if Redis unavailable
+// Initialize queue with Redis check
 let scanQueue;
-try {
-  const Queue = require('bull');
-  scanQueue = new Queue('website-scan', {
-    redis: {
+(async () => {
+  try {
+    const Redis = require('ioredis');
+    const redis = new Redis({
       host: process.env.REDIS_HOST || 'localhost',
       port: process.env.REDIS_PORT || 6379,
       password: process.env.REDIS_PASSWORD || undefined,
-      maxRetriesPerRequest: null,
-      retryDelayOnFailover: 1000,
-      enableReadyCheck: false,
-      lazyConnect: true,
-    },
-    defaultJobOptions: {
-      removeOnComplete: 50,
-      removeOnFail: 20,
-      attempts: 3,
-      backoff: {
-        type: 'exponential',
-        delay: 5000,
+      lazyConnect: false,
+      connectTimeout: 2000,
+      commandTimeout: 2000,
+    });
+
+
+
+    await redis.ping();
+    redis.disconnect();
+
+    // Redis is available, use Bull queue
+    const Queue = require('bull');
+    scanQueue = new Queue('website-scan', {
+      redis: {
+        host: process.env.REDIS_HOST || 'localhost',
+        port: process.env.REDIS_PORT || 6379,
+        password: process.env.REDIS_PASSWORD || undefined,
+        maxRetriesPerRequest: null,
+        retryDelayOnFailover: 1000,
+        enableReadyCheck: false,
+        lazyConnect: false,
       },
-    },
-  });
+      defaultJobOptions: {
+        removeOnComplete: 50,
+        removeOnFail: 20,
+        attempts: 3,
+        backoff: {
+          type: 'exponential',
+          delay: 5000,
+        },
+      },
+    });
+
+    // Handle Bull queue errors to prevent unhandled error events
+    scanQueue.on('error', (err) => {
+      console.warn('Bull queue error:', err.message);
+    });
+
+    console.log("Using Bull queue with Redis. Job processing is handled by scanQueue.js");
 
   // Process scan jobs with Bull
   scanQueue.process(async (job) => {
@@ -395,66 +363,10 @@ try {
       const scanResult = await Promise.race([scanPromise, timeoutPromise]);
       const scanDuration = Date.now() - startTime;
 
-      // Get or create baseline
-      let baseline = await Baseline.findOne({ url, isActive: true });
+      // For dynamic-only analysis, we skip baseline comparison
+      // since we don't have static HTML content to compare
+      let baseline = null;
       let diffReport = null;
-
-      if (baseline) {
-        // Compare with baseline
-        const contentDiffResult = contentDiff(baseline.htmlContent, scanResult.staticAnalysis.html);
-        const scriptDiffResult = scriptDiff(baseline.scripts, scanResult.staticAnalysis.scripts);
-
-        diffReport = {
-          contentChanged: contentDiffResult.changed,
-          contentDiff: contentDiffResult,
-          scriptDiff: scriptDiffResult,
-          riskIncrease: scriptDiffResult.riskIncrease,
-        };
-
-        // Update baseline if significant changes detected (optional)
-        if (contentDiffResult.changed && contentDiffResult.summary.addedCount + contentDiffResult.summary.removedCount > 10) {
-          // Create new baseline version
-          baseline.isActive = false;
-          await baseline.save();
-
-          baseline = await Baseline.create({
-            url,
-            contentHash: scanResult.hash,
-            htmlContent: scanResult.staticAnalysis.html,
-            scripts: scanResult.staticAnalysis.scripts,
-            iframes: scanResult.staticAnalysis.iframes,
-            inlineScripts: scanResult.staticAnalysis.inlineScripts,
-            metaTags: scanResult.staticAnalysis.metaTags,
-            obfuscatedScripts: scanResult.staticAnalysis.obfuscatedScripts,
-            suspiciousPatterns: scanResult.staticAnalysis.suspiciousPatterns,
-            dynamicData: {
-              requests: scanResult.dynamicAnalysis.requests,
-              responses: scanResult.dynamicAnalysis.responses,
-              finalURL: scanResult.dynamicAnalysis.finalURL,
-            },
-            userId,
-          });
-        }
-      } else {
-        // Create initial baseline
-        baseline = await Baseline.create({
-          url,
-          contentHash: scanResult.hash,
-          htmlContent: scanResult.staticAnalysis.html,
-          scripts: scanResult.staticAnalysis.scripts,
-          iframes: scanResult.staticAnalysis.iframes,
-          inlineScripts: scanResult.staticAnalysis.inlineScripts,
-          metaTags: scanResult.staticAnalysis.metaTags,
-          obfuscatedScripts: scanResult.staticAnalysis.obfuscatedScripts,
-          suspiciousPatterns: scanResult.staticAnalysis.suspiciousPatterns,
-          dynamicData: {
-            requests: scanResult.dynamicAnalysis.requests,
-            responses: scanResult.dynamicAnalysis.responses,
-            finalURL: scanResult.dynamicAnalysis.finalURL,
-          },
-          userId,
-        });
-      }
 
       // Save scan result with audit logging
       const savedResult = await ScanResult.create({
@@ -582,10 +494,12 @@ try {
     console.error(`Job ${job.id} failed for ${job.data.url}:`, err.message);
   });
 
-} catch (error) {
-  console.warn('Redis not available, using in-memory queue:', error.message);
-  scanQueue = new SimpleQueue();
-}
+  } catch (error) {
+    console.warn('Redis not available, using in-memory queue:', error.message);
+    scanQueue = new SimpleQueue();
+    console.log("Using in-memory SimpleQueue. Jobs will be processed automatically.");
+  }
+})();
 
 
 

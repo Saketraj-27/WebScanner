@@ -1,5 +1,5 @@
 const router = require("express").Router();
-const { scan, getScanStatus, getScanDetails, history, getQueueStatus } = require("../controllers/scanController");
+const { scan, getScanStatus, getScanDetails, history, getQueueStatus, exportPDF } = require("../controllers/scanController");
 const { authenticate, optionalAuth } = require("../middleware/auth");
 
 // Temporarily remove authentication for testing queue status
@@ -23,6 +23,9 @@ router.get("/status/:jobId", getScanStatus);
 
 // Get scan result by ID
 router.get("/:id", getScanDetails);
+
+// Export scan result as PDF
+router.get("/:id/export/pdf", exportPDF);
 
 // Get scan history
 router.get("/", history);

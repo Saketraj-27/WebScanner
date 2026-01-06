@@ -8,11 +8,6 @@ connectDB();
 console.log("Scan worker started. Waiting for jobs...");
 
 // Job processing is handled in scanQueue.js, worker just keeps the process alive
-if (scanQueue.constructor.name === 'Queue') {
-  console.log("Using Bull queue with Redis. Job processing is handled by scanQueue.js");
-} else {
-  console.log("Using in-memory SimpleQueue. Jobs will be processed automatically.");
-}
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {

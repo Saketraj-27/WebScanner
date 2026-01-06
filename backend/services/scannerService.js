@@ -64,73 +64,68 @@ function returnBrowser(browser) {
 }
 
 module.exports = async function scan(url, options = {}) {
-  const { useBrowser = false, timeout = 15000, skipCache = false } = options; // Temporarily disable dynamic testing to test static analysis
+  const { timeout = 30000, skipCache = false } = options; // Dynamic analysis only, increased timeout
 
   // Check cache first
   if (!skipCache) {
-    const cacheKey = `${url}_${useBrowser}`;
+    const cacheKey = `dynamic_${url}`;
     const cached = scanCache.get(cacheKey);
     if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-      console.log(`Returning cached result for ${url}`);
+      console.log(`Returning cached dynamic result for ${url}`);
       return cached.result;
     }
   }
 
-  // Static analysis (fast)
-  console.log(`[SCANNER SERVICE] Starting static analysis for ${url}`);
-  let staticResult = await performStaticAnalysis(url);
-  console.log(`[SCANNER SERVICE] Static analysis completed for ${url}`);
+  console.log(`[SCANNER SERVICE] Starting dynamic analysis for ${url}`);
 
-  // Dynamic analysis with headless browser if enabled
+  // Dynamic analysis with headless browser (always enabled)
+  let browser;
   let dynamicResult = {};
-  if (useBrowser) {
-    let browser;
-    try {
-      browser = await getBrowser();
-      // Add timeout wrapper to prevent hanging
-      const dynamicPromise = performDynamicAnalysis(url, timeout, browser);
-      const timeoutPromise = new Promise((_, reject) =>
-        setTimeout(() => reject(new Error('Dynamic analysis timeout')), timeout + 2000)
-      );
+  try {
+    browser = await getBrowser();
+    console.log(`[SCANNER SERVICE] Browser acquired for ${url}`);
 
-      dynamicResult = await Promise.race([dynamicPromise, timeoutPromise]);
-    } catch (error) {
-      console.warn("Dynamic analysis failed:", error.message);
-      dynamicResult = {
-        browserErrors: [error.message],
-        requests: [],
-        responses: [],
-        consoleMessages: [],
-        networkErrors: [],
-        redirects: false,
-        domMutations: [],
-        finalURL: url,
-        dynamicScripts: [],
-        dynamicIframes: []
-      };
-    } finally {
-      if (browser) {
-        try {
-          returnBrowser(browser);
-        } catch (error) {
-          console.warn("Error returning browser to pool:", error.message);
-        }
+    // Add timeout wrapper to prevent hanging
+    const dynamicPromise = performDynamicAnalysis(url, timeout, browser);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Dynamic analysis timeout after ' + timeout + 'ms')), timeout + 5000)
+    );
+
+    dynamicResult = await Promise.race([dynamicPromise, timeoutPromise]);
+    console.log(`[SCANNER SERVICE] Dynamic analysis completed for ${url}`);
+
+  } catch (error) {
+    console.error(`[SCANNER SERVICE] Dynamic analysis failed for ${url}:`, error.message);
+    dynamicResult = {
+      browserErrors: [error.message],
+      requests: [],
+      responses: [],
+      consoleMessages: [],
+      networkErrors: [],
+      redirects: false,
+      domMutations: [],
+      finalURL: url,
+      dynamicScripts: [],
+      dynamicIframes: [],
+      analysisFailed: true
+    };
+  } finally {
+    if (browser) {
+      try {
+        returnBrowser(browser);
+        console.log(`[SCANNER SERVICE] Browser returned to pool for ${url}`);
+      } catch (error) {
+        console.warn("Error returning browser to pool:", error.message);
       }
     }
   }
 
-  // Combine results and calculate risk score
-  const combined = combineAnalysisResults(staticResult, dynamicResult);
-
-  const result = {
-    ...combined,
-    staticAnalysis: staticResult,
-    dynamicAnalysis: dynamicResult,
-  };
+  // Calculate risk score based on dynamic analysis only
+  const result = calculateDynamicRiskScore(dynamicResult, url);
 
   // Cache the result
   if (!skipCache) {
-    const cacheKey = `${url}_${useBrowser}`;
+    const cacheKey = `dynamic_${url}`;
     scanCache.set(cacheKey, {
       result,
       timestamp: Date.now()
@@ -287,96 +282,119 @@ async function performDynamicAnalysis(url, timeout, browser) {
   }
 }
 
-function combineAnalysisResults(staticResult, dynamic) {
+function calculateDynamicRiskScore(dynamicResult, url) {
   let score = 0;
   let reasons = [];
   let severity = 'low';
 
-  // Debug logging for clean HTML test
-  if (staticResult.html.includes('Clean Page')) {
-    console.log('DEBUG combineAnalysisResults: Called for clean HTML');
-    console.log('DEBUG: Suspicious patterns:', staticResult.suspiciousPatterns);
-    console.log('DEBUG: Obfuscated scripts:', staticResult.obfuscatedScripts);
-    console.log('DEBUG: Scripts count:', staticResult.scripts.length);
-    console.log('DEBUG: Inline scripts:', staticResult.inlineScripts);
+  // Check if analysis failed
+  if (dynamicResult.analysisFailed) {
+    reasons.push("Dynamic analysis failed - unable to scan website");
+    score = 100;
+    severity = 'critical';
+  return {
+    hash: crypto.createHash("sha256").update(url + Date.now()).digest("hex"),
+    url,
+    score,
+    severity,
+    reasons,
+    corrupted: true,
+    threats: {
+      dynamic: {
+        analysisFailed: true,
+        browserErrors: dynamicResult.browserErrors || []
+      }
+    },
+    staticAnalysis: {
+      scripts: [],
+      iframes: [],
+      obfuscatedScripts: []
+    },
+    dynamicAnalysis: dynamicResult
+  };
   }
 
-  // Static analysis scoring
-  if (staticResult.suspiciousPatterns.evalUsage) {
-    reasons.push("Use of eval() detected in scripts");
-    score += 40;
-  }
-
-  if (staticResult.suspiciousPatterns.documentWrite) {
-    reasons.push("document.write() usage detected");
+  // Dynamic analysis scoring based on behavior
+  if (dynamicResult.redirects) {
+    reasons.push("Unexpected redirects detected during page load");
     score += 25;
   }
 
-  if (staticResult.suspiciousPatterns.innerHTML) {
-    reasons.push("innerHTML manipulation detected");
-    score += 20;
-  }
-
-  if (staticResult.obfuscatedScripts.length > 0) {
-    reasons.push(`${staticResult.obfuscatedScripts.length} obfuscated scripts detected`);
-    score += 35;
-  }
-
-  if (staticResult.suspiciousPatterns.hiddenIframes) {
-    reasons.push("Hidden iframes detected");
+  if (dynamicResult.domMutations && dynamicResult.domMutations.length > 20) {
+    reasons.push(`Excessive DOM mutations detected (${dynamicResult.domMutations.length} changes)`);
     score += 30;
   }
 
-  if (staticResult.scripts.length > 10) {
-    reasons.push(`High number of external scripts (${staticResult.scripts.length})`);
-    score += 15;
-  }
-
-  // Dynamic analysis scoring
-  if (dynamic.redirects) {
-    reasons.push("Unexpected redirects detected");
+  if (dynamicResult.networkErrors && dynamicResult.networkErrors.length > 0) {
+    reasons.push(`${dynamicResult.networkErrors.length} network request failures detected`);
     score += 20;
   }
 
-  if (dynamic.domMutations && dynamic.domMutations.length > 50) {
-    reasons.push("Excessive DOM mutations detected");
-    score += 25;
+  if (dynamicResult.consoleMessages && dynamicResult.consoleMessages.some(m => m.type === 'error')) {
+    const errorCount = dynamicResult.consoleMessages.filter(m => m.type === 'error').length;
+    reasons.push(`${errorCount} JavaScript errors detected in browser console`);
+    score += Math.min(errorCount * 5, 25); // Max 25 points for console errors
   }
 
-  if (dynamic.networkErrors && dynamic.networkErrors.length > 0) {
-    reasons.push(`${dynamic.networkErrors.length} network errors detected`);
-    score += 10;
+  if (dynamicResult.dynamicScripts && dynamicResult.dynamicScripts.length > 15) {
+    reasons.push(`High number of dynamically loaded scripts (${dynamicResult.dynamicScripts.length})`);
+    score += 20;
   }
 
-  if (dynamic.consoleMessages && dynamic.consoleMessages.some(m => m.type === 'error')) {
-    reasons.push("JavaScript errors in console");
+  if (dynamicResult.dynamicIframes && dynamicResult.dynamicIframes.length > 0) {
+    reasons.push(`${dynamicResult.dynamicIframes.length} iframes loaded dynamically`);
     score += 15;
   }
 
-  // Determine severity
+  // Check for suspicious script patterns in dynamic content
+  if (dynamicResult.dynamicScripts) {
+    const suspiciousScripts = dynamicResult.dynamicScripts.filter(script =>
+      script.includes('eval(') ||
+      script.includes('document.write') ||
+      script.includes('innerHTML') ||
+      script.includes('outerHTML')
+    );
+    if (suspiciousScripts.length > 0) {
+      reasons.push(`${suspiciousScripts.length} suspicious scripts detected in dynamic content`);
+      score += suspiciousScripts.length * 10;
+    }
+  }
+
+  // Check for excessive requests (potential data exfiltration)
+  if (dynamicResult.requests && dynamicResult.requests.length > 50) {
+    reasons.push(`Excessive network requests detected (${dynamicResult.requests.length})`);
+    score += 25;
+  }
+
+  // Determine severity based on score
   if (score >= 80) severity = 'critical';
   else if (score >= 60) severity = 'high';
   else if (score >= 40) severity = 'medium';
   else if (score >= 20) severity = 'low';
 
   return {
-    hash: staticResult.hash,
-    scripts: staticResult.scripts,
-    iframes: staticResult.iframes,
+    hash: crypto.createHash("sha256").update(url + Date.now()).digest("hex"),
+    url,
     score,
     severity,
     reasons,
     corrupted: score > 50,
     threats: {
-      static: {
-        obfuscatedScripts: staticResult.obfuscatedScripts.length,
-        suspiciousPatterns: Object.keys(staticResult.suspiciousPatterns).filter(k => staticResult.suspiciousPatterns[k])
-      },
       dynamic: {
-        redirects: dynamic.redirects,
-        domMutations: dynamic.domMutations ? dynamic.domMutations.length : 0,
-        networkErrors: dynamic.networkErrors ? dynamic.networkErrors.length : 0
+        redirects: dynamicResult.redirects || false,
+        domMutations: dynamicResult.domMutations ? dynamicResult.domMutations.length : 0,
+        networkErrors: dynamicResult.networkErrors ? dynamicResult.networkErrors.length : 0,
+        consoleErrors: dynamicResult.consoleMessages ? dynamicResult.consoleMessages.filter(m => m.type === 'error').length : 0,
+        dynamicScripts: dynamicResult.dynamicScripts ? dynamicResult.dynamicScripts.length : 0,
+        dynamicIframes: dynamicResult.dynamicIframes ? dynamicResult.dynamicIframes.length : 0,
+        totalRequests: dynamicResult.requests ? dynamicResult.requests.length : 0
       }
-    }
+    },
+    staticAnalysis: {
+      scripts: [],
+      iframes: [],
+      obfuscatedScripts: []
+    },
+    dynamicAnalysis: dynamicResult
   };
 }

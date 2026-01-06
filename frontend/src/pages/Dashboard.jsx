@@ -316,8 +316,11 @@ export default function Dashboard() {
             <div className="recent-scans-card">
               <h3>Recent Scans</h3>
               <div className="recent-scans-list">
-                {scanHistory.slice(0, 5).map((scan) => (
-                  <div key={scan._id} className="recent-scan-item">
+                {scanHistory.slice(0, 5).map((scan, index) => (
+                  <div
+                    key={scan._id + "-" + index}
+                    className="recent-scan-item"
+                  >
                     <div className="scan-url">{scan.url}</div>
                     <div className="scan-meta">
                       <span className={`severity ${scan.severity || "low"}`}>
