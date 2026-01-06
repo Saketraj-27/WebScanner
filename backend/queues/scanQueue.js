@@ -288,7 +288,10 @@ let scanQueue;
       commandTimeout: 2000,
     });
 
-
+    // Handle Redis connection errors to prevent unhandled error events
+    redis.on('error', (err) => {
+      // Suppress Redis connection errors as they are handled in the catch block
+    });
 
     await redis.ping();
     redis.disconnect();

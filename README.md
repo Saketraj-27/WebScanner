@@ -1,246 +1,208 @@
-hello saniya
-to run frontend use this: cd frontend and then npm run dev 
-and for backend :cd backend && npm run dev
-or else extract the code and ask blackbox to run
-{"email":"test@example.com","password":"password123","name":"Test User"}'
-# XSS Guard
+# XSS Guard - Enterprise Website Security Monitoring Platform
 
-A full-stack application for XSS scanning and protection.
+XSS Guard is a comprehensive enterprise-grade platform for monitoring website security vulnerabilities, with a focus on Cross-Site Scripting (XSS) detection. It provides real-time scanning, scheduled monitoring, team collaboration, and automated reporting capabilities.
+
+## Features
+
+- **Real-time XSS Detection**: Advanced scanning engine that identifies XSS vulnerabilities in web applications
+- **Scheduled Scans**: Automated periodic security monitoring with customizable schedules
+- **Team Collaboration**: Multi-user support with role-based access control and team management
+- **Real-time Notifications**: Socket.IO-powered live updates on scan progress and results
+- **Webhook Integration**: Automated notifications to external systems via webhooks
+- **API Key Management**: Secure API access for integrations
+- **Baseline Comparisons**: Track security changes over time with diff analysis
+- **Comprehensive Reporting**: Detailed security reports with PDF generation
+- **Rate Limiting**: Built-in protection against abuse with configurable limits
+- **SSRF Protection**: Server-side request forgery prevention middleware
 
 ## Prerequisites
 
-- Node.js (version 14 or higher)
-- npm or yarn
-- MongoDB (for backend database)
+Before running this application, make sure you have the following installed:
+
+- **Node.js** (version 16 or higher)
+- **MongoDB** (version 4.4 or higher)
+- **Redis** (version 5 or higher)
+- **npm** or **yarn** package manager
 
 ## Installation
 
-1. Clone the repository:
-   ```
-   git clone <repository-url>
-   cd xss-guard
+### Backend Setup
+
+1. Navigate to the backend directory:
+   ```bash
+   cd backend
    ```
 
-2. Install backend dependencies:
-   ```
-   cd backend
+2. Install dependencies:
+   ```bash
    npm install
    ```
 
-3. Install frontend dependencies:
+3. Create a `.env` file in the backend directory with the following variables:
    ```
-   cd ../frontend
+   NODE_ENV=development
+   PORT=5000
+   MONGODB_URI=mongodb://localhost:27017/xss-guard
+   JWT_SECRET=your-super-secret-jwt-key-here
+   REDIS_URL=redis://localhost:6379
+   FRONTEND_URL=http://localhost:5173
+   ```
+
+4. Start MongoDB and Redis services on your system.
+
+### Frontend Setup
+
+1. Navigate to the frontend directory:
+   ```bash
+   cd frontend
+   ```
+
+2. Install dependencies:
+   ```bash
    npm install
    ```
 
 ## Running the Application
 
-### Backend
+### Development Mode
 
-1. Navigate to the backend directory:
-   ```
+1. **Start the Backend**:
+   ```bash
    cd backend
-   ```
-
-2. Create a `.env` file in the backend directory with your MongoDB connection string and other environment variables (refer to `config/db.js` for required variables).
-
-3. Start the backend server:
-   - For development (with auto-restart):
-     ```
-     npm run dev
-     ```
-   - For production:
-     ```
-     npm start
-     ```
-
-   The backend will run on `http://localhost:3000` (or the port specified in your environment).
-
-### Frontend
-
-1. Navigate to the frontend directory:
-   ```
-   cd frontend
-   ```
-
-2. Start the development server:
-   ```
    npm run dev
    ```
+   The backend server will start on `http://localhost:5000`
 
-   The frontend will run on `http://localhost:5173` (default Vite port).
+2. **Start the Frontend**:
+   ```bash
+   cd frontend
+   npm run dev
+   ```
+   The frontend will be available at `http://localhost:5173`
 
-## Packages Installed
+### Production Mode
 
-### Backend
+1. **Build the Frontend**:
+   ```bash
+   cd frontend
+   npm run build
+   ```
 
-#### Dependencies
-- **axios**: ^1.13.2 - HTTP client for making requests
-- **cheerio**: ^1.1.2 - jQuery-like library for server-side DOM manipulation
-- **cors**: ^2.8.5 - Middleware for enabling CORS
-- **dotenv**: ^17.2.3 - Loads environment variables from .env file
-- **express**: ^5.2.1 - Web framework for Node.js
-- **mongoose**: ^9.0.1 - MongoDB object modeling tool
-- **nodeman**: ^1.1.2 - Process manager for Node.js
+2. **Start the Backend**:
+   ```bash
+   cd backend
+   npm start
+   ```
 
-#### DevDependencies
-- **nodemon**: ^3.1.11 - Utility that monitors for changes and restarts the server
+## How It Works
 
-### Frontend
+### Architecture Overview
 
-#### Dependencies
-- **axios**: ^1.13.2 - HTTP client for making API requests
-- **react**: ^19.2.3 - JavaScript library for building user interfaces
-- **react-dom**: ^19.2.3 - React package for DOM rendering
-- **react-router-dom**: ^7.10.1 - Declarative routing for React
+XSS Guard consists of three main components:
 
-#### DevDependencies
-- **vite**: ^7.2.7 - Fast build tool and development server
+1. **Frontend (React + Vite)**: User interface for managing scans, viewing results, and team administration
+2. **Backend (Node.js + Express)**: RESTful API server handling authentication, scan orchestration, and data management
+3. **Worker Process**: Background job processor using BullMQ for handling scan tasks asynchronously
 
-## Usage
+### Security Scanning Process
 
-Once both servers are running, open your browser and navigate to the frontend URL (usually `http://localhost:5173`). You can then use the application to perform XSS scans.
+1. **URL Submission**: Users submit website URLs through the frontend interface
+2. **Queue Processing**: URLs are added to a Redis-backed job queue for asynchronous processing
+3. **Vulnerability Detection**: The scanner service uses Puppeteer to render pages and Cheerio for DOM analysis to detect XSS vulnerabilities
+4. **Result Storage**: Scan results are stored in MongoDB with detailed vulnerability information
+5. **Real-time Updates**: Socket.IO provides live progress updates to connected clients
+6. **Reporting**: Results can be exported as PDF reports or sent via webhooks
 
+### Key Components
 
+- **Authentication System**: JWT-based auth with bcrypt password hashing
+- **Scan Engine**: Puppeteer-powered browser automation for comprehensive XSS detection
+- **Queue System**: BullMQ for reliable background job processing
+- **Database Models**: Mongoose schemas for Users, Teams, Scans, Webhooks, and API Keys
+- **Middleware**: Rate limiting, CORS, SSRF protection, and authentication guards
+- **Real-time Communication**: Socket.IO for live scan status updates
 
+## API Endpoints
 
-Comprehensive Testing Summary
-I have completed thorough testing of the Enterprise-Grade Website Security Monitoring Platform (XSS Guard). Here's the comprehensive testing report:
+### Authentication
+- `POST /api/auth/register` - User registration
+- `POST /api/auth/login` - User login
+- `GET /api/auth/profile` - Get user profile
 
-✅ Testing Completed Successfully:
-1. Backend API Testing
-Authentication System: All endpoints tested (register, login, profile)
+### Scanning
+- `POST /api/scan` - Initiate a new scan
+- `GET /api/scan/:id` - Get scan results
+- `GET /api/scan/history` - Get scan history
 
-User registration with validation
-JWT token authentication
-Password hashing and verification
-Profile access with proper authorization
-Team Collaboration: Full CRUD operations tested
+### Teams
+- `POST /api/teams` - Create a team
+- `GET /api/teams` - List user's teams
+- `POST /api/teams/:id/members` - Add team member
 
-Team creation and management
-Member addition/removal with role management
-Permission-based access control
-Team ownership and administration
-Security Features: SSRF protection and sandboxed execution implemented
+### Scheduled Scans
+- `POST /api/scheduled-scans` - Create scheduled scan
+- `GET /api/scheduled-scans` - List scheduled scans
+- `PUT /api/scheduled-scans/:id` - Update scheduled scan
 
-URL validation middleware
-Blocked hostname/IP range protection
-Isolated worker execution environment
-2. Frontend Build Testing
-Component Structure: All React components validated
+### Webhooks
+- `POST /api/webhooks` - Create webhook
+- `GET /api/webhooks` - List webhooks
+- `DELETE /api/webhooks/:id` - Delete webhook
 
-Dashboard with real-time charts and analytics
-Scan forms and result visualization
-Navigation and tabbed interface
-Export functionality for reports
-Build Process: Production build successful
+## Testing
 
-Vite bundling completed without errors
-All dependencies resolved
-Optimized production assets generated
-3. Infrastructure Testing
+### Backend Tests
+```bash
+cd backend
+npm test
+```
 
-Multi-service architecture (Backend, Frontend, MongoDB, Redis, Worker)
-Environment variables and networking configured
-CI/CD pipeline with GitHub Actions ready
-Database Integration: MongoDB and Redis connectivity
+### Integration Tests
+```bash
+cd backend
+npm run test:integration
+```
 
-Schema validation for all models
-Indexing for performance optimization
-Connection pooling and error handling
-4. Security Testing
-Authentication & Authorization: Comprehensive security measures
+### Test Coverage
+```bash
+cd backend
+npm run test:coverage
+```
 
-JWT-based authentication with role-based access
-API key management system
-Rate limiting and request throttling
-SSRF protection against malicious requests
-Data Protection: Secure data handling
+## Database Population
 
-Password encryption with bcrypt
-Input validation and sanitization
-CORS configuration for cross-origin requests
-5. Integration Testing
-API Endpoints: All routes tested
+For development purposes, you can populate the database with test data:
 
-Scan operations (initiate, retrieve, history)
-Webhook notifications
-Scheduled scanning with cron jobs
-Queue management with Bull/Redis
-Real-time Features: WebSocket integration
+```bash
+node populate_db.js
+```
 
-Live scan updates
-Real-time dashboard metrics
-Socket.io client-server communication
-🏗️ Architecture Validation
-Backend Services (Node.js/Express)
+Or create custom test data:
 
-RESTful API design with proper HTTP status codes
-Middleware stack (auth, validation, security)
-Asynchronous processing with queues
-Error handling and logging
-Frontend (React/Vite)
+```bash
+node create_test_data.js
+```
 
-Component-based architecture
-State management with hooks
-Chart.js integration for analytics
-Responsive design with CSS Grid/Flexbox
-Database Layer (MongoDB)
+## Environment Variables
 
-Schema design with Mongoose ODM
-Indexing for query optimization
-Data relationships and population
-Migration-ready structure
-Infrastructure
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NODE_ENV` | Environment mode | development |
+| `PORT` | Server port | 5000 |
+| `MONGODB_URI` | MongoDB connection string | mongodb://localhost:27017/xss-guard |
+| `JWT_SECRET` | JWT signing secret | (required) |
+| `REDIS_URL` | Redis connection URL | redis://localhost:6379 |
+| `FRONTEND_URL` | Frontend application URL | http://localhost:5173 |
 
-Environment-based configuration
-Scalable service architecture
-Development and production parity
-🔧 Code Quality Metrics
-Test Coverage: Comprehensive test suite created
-Error Handling: Proper try-catch blocks and error responses
-Code Organization: Modular structure with separation of concerns
-Documentation: Inline comments and API documentation
-Security: Input validation, authentication, and authorization
-📊 Performance Benchmarks
-API Response Times: Optimized for sub-100ms responses
-Database Queries: Indexed for efficient data retrieval
-Frontend Loading: Optimized bundle size and lazy loading
-Concurrent Users: Designed for horizontal scaling
-🎯 Compliance & Standards
-REST API Standards: Proper HTTP methods and status codes
-Security Best Practices: OWASP guidelines implementation
-Code Standards: Consistent formatting and naming conventions
-Accessibility: Semantic HTML and ARIA attributes
-🚀 Deployment Readiness
-The platform is production-ready with:
+## Contributing
 
-Environment-based configuration
-CI/CD pipeline for automated testing and deployment
-Comprehensive error handling and monitoring
-Scalable architecture supporting multiple instances
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests for new functionality
+5. Ensure all tests pass
+6. Submit a pull request
 
+## License
 
-
-Based on the XSS Guard project, which performs static and dynamic analysis to detect XSS vulnerabilities in URLs, here are some suggested URLs you can use for testing the scanning functionality. These include a mix of safe public pages, known vulnerable test environments, and pages designed for security testing:
-
-Safe Public URLs (Low Risk, Good for Baseline Testing):
-https://example.com - Simple static page, should score low on XSS detection.
-https://httpbin.org/html - Returns a basic HTML page with some inline scripts.
-https://news.ycombinator.com - Real website with dynamic content (use with caution for rate limiting).
-XSS Test Pages (For Vulnerability Detection Testing):
-https://owasp.org/www-community/xss-filter-evasion-cheatsheet - OWASP's comprehensive XSS evasion cheatsheet (educational, contains examples).
-https://portswigger.net/web-security/cross-site-scripting - PortSwigger's XSS documentation page.
-http://testphp.vulnweb.com/xss/example1.php?name=alert('XSS') - Vulnweb test page (if accessible).
-Vulnerable Web Application URLs (For Thorough Testing):
-http://dvwa.local/vulnerabilities/xss_r/ - Damn Vulnerable Web Application XSS reflected vulnerability (requires local DVWA setup).
-http://dvwa.local/vulnerabilities/xss_s/ - DVWA stored XSS vulnerability.
-Custom Test URLs (Create Your Own):
-You can create simple HTML files with XSS payloads and host them locally or on a test server:
-
-A page with <script>alert('XSS')</script> in the body.
-A page with javascript:alert('XSS') in links.
-A page using innerHTML with user input.
-Note: Always ensure you have permission to scan any URL, especially production websites. For development testing, start with local or controlled environments. The scanner will analyze static content (HTML, scripts) and dynamic behavior (DOM mutations, redirects) to assign a risk score.
-
-
+This project is licensed under the ISC License.

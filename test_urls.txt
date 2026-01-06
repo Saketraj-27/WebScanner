@@ -1,18 +1,11 @@
 XSS Guard - Test URLs for Scanning
 
 Safe Public URLs (Low Risk, Good for Baseline Testing):
-1. https://example.com - Simple static page, should score low on XSS detection.
-2. https://httpbin.org/html - Returns a basic HTML page with some inline scripts.
-3. https://news.ycombinator.com - Real website with dynamic content (use with caution for rate limiting).
-
-XSS Test Pages (For Vulnerability Detection Testing):
-1. https://owasp.org/www-community/xss-filter-evasion-cheatsheet - OWASP's comprehensive XSS evasion cheatsheet (educational, contains examples).
-2. https://portswigger.net/web-security/cross-site-scripting - PortSwigger's XSS documentation page.
-3. http://testphp.vulnweb.com/xss/example1.php?name=<script>alert('XSS')</script> - Vulnweb test page (if accessible).
-
-Vulnerable Web Application URLs (For Thorough Testing):
-1. http://dvwa.local/vulnerabilities/xss_r/ - Damn Vulnerable Web Application XSS reflected vulnerability (requires local DVWA setup).
-2. http://dvwa.local/vulnerabilities/xss_s/ - DVWA stored XSS vulnerability.
+1. (low threat detection) https://example.com - Simple static page, should score low on XSS detection.
+2. (low threat detection) https://httpbin.org/html - Returns a basic HTML page with some inline scripts.
+3. (low threat detection) https://news.ycombinator.com - Real website with dynamic content (use with caution for rate limiting).
+4. (critical threat detection) http://testphp.vulnweb.com/xss/example1.php?name=<script>alert('XSS')</script>  Vulnweb test page (if accessible).
+5. (medium threat detection) https://cheatsheetseries.owasp.org/cheatsheets/XSS_Filter_Evasion_Cheat_Sheet.html
 
 Custom Test URLs (Create Your Own):
 - A page with <script>alert('XSS')</script> in the body.
